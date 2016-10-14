@@ -1,85 +1,75 @@
 module Cnab240santander
   class Retorno    
     # Tipos de registros
-    $HEADER_ARQUIVO = 0
-    $HEADER_LOTE = 1
-    $DETALHE = 3
-    $TRAILER_LOTE = 5
-    $TRAILER_ARQUIVO = 9
+    HEADER_ARQUIVO = 0
+    HEADER_LOTE = 1
+    DETALHE = 3
+    TRAILER_LOTE = 5
+    TRAILER_ARQUIVO = 9
     
     attr_accessor :linhas
     
-    def initialize(args = {})
-      if args.has_key? :path
-        @linhas = processar(args) if validaCNAB240(args[:path])
-      else
-        raise Exception, "Necessario informar o :path"
-      end
+    def initialize(path: , retorna: nil, merge: false)
+      @path    = path
+      @retorna = retorna
+      @merge   = merge
+
+      raise StandardError, "Arquivo inválido" unless arquivo_valido?
+
+      processar!
     end
 
-    def validaCNAB240(path)
-      File.open(path, 'rb') do |f|
-        while linha = f.gets
-          return false if linha.length != 242
-        end
-      end
-      return true
+    def arquivo_valido?
+      !alguma_linha_nao_possui_240_caracteres?
     end
 
-    def processarLinha(numLn, linha)
-      tipoLn = linha[7..7].to_i
+    def processar_linha(linha)
+      tipo_ln = linha[7..7].to_i
       segmento = linha[13..13].to_s
 
-      case tipoLn
-        when $HEADER_ARQUIVO
-           HeaderArquivo.processar(linha)
-        when $HEADER_LOTE 
-           HeaderLote.processar(linha)
-        when $DETALHE
-           Detalhe.processar(linha, segmento)
-        when $TRAILER_LOTE
-           TrailerLote.processar(linha)
-        when $TRAILER_ARQUIVO 
-           TrailerArquivo.processar(linha) 
-        end
+      case tipo_ln
+      when HEADER_ARQUIVO
+         HeaderArquivo.processar(linha)
+      when HEADER_LOTE 
+         HeaderLote.processar(linha)
+      when DETALHE
+         Detalhe.processar(linha, segmento)
+      when TRAILER_LOTE
+         TrailerLote.processar(linha)
+      when TRAILER_ARQUIVO 
+         TrailerArquivo.processar(linha) 
+      end
     end
 
-    def processar(args)
-      linhas = []
-      numLn = 0
-  
-      File.open(args[:path], 'rb') { |f|
-        while (linha = f.gets)
-          tipoLn = linha[7..7].to_i
-          if tipoLn == $HEADER_ARQUIVO and args[:retorna] == $HEADER_ARQUIVO #0
-            linhas << HeaderArquivo.processar(linha)
-          elsif tipoLn == $DETALHE and args[:retorna] == $DETALHE #3
-            segmento = linha[13..13]
-            if args[:merge] ==  true
-              hash_aux = {}
-          
-              #RESGATANDO SEGMENTO G PARA AGRUPAMENTO
-              segmento = linha[13..13]
-              add_to_hash(Detalhe.processar(linha, segmento), hash_aux)
-          
-              #RESGATANDO SEGMENTO H PARA AGRUPAMENTO (PROXIMA LINHA)
-              linha = f.gets
-              segmento = linha[13..13]
-              add_to_hash(Detalhe.processar(linha, segmento), hash_aux)
-          
-              linhas << hash_aux
-            else
-              linhas << Detalhe.processar(linha, segmento)
-            end
+    def processar!
+      @linhas = []  
+      file = File.open(path)
+      while linha = file.gets
+        tipo_ln = linha[7..7].to_i
+        if tipo_ln == HEADER_ARQUIVO and retorna == HEADER_ARQUIVO #0
+          linhas << HeaderArquivo.processar(linha)
+        elsif tipo_ln == DETALHE and retorna == DETALHE #3
+          segmento = linha[13..13]
+          if merge?
+            hash_aux = {}
         
-          elsif args[:retorna].blank?
-            linhas << processarLinha(numLn, linha)
+            #RESGATANDO SEGMENTO G PARA AGRUPAMENTO
+            segmento = linha[13..13]
+            add_to_hash(Detalhe.processar(linha, segmento), hash_aux)
+        
+            #RESGATANDO SEGMENTO H PARA AGRUPAMENTO (PROXIMA LINHA)
+            linha = file.gets
+            segmento = linha[13..13]
+            add_to_hash(Detalhe.processar(linha, segmento), hash_aux)
+        
+            linhas << hash_aux
+          else
+            linhas << Detalhe.processar(linha, segmento)
           end
-          numLn += 1
+              elsif retorna.nil?
+          linhas << processar_linha(linha)
         end
-      }
-  
-      return linhas
+      end
     end
 
     def add_to_hash(my_hash, combined_hash)
@@ -91,6 +81,19 @@ module Cnab240santander
         end
       end
       combined_hash
+    end
+
+    private
+
+    attr_reader :path, :retorna, :merge
+    alias_method :merge?, :merge
+
+    def alguma_linha_nao_possui_240_caracteres?
+      File.open(path)
+        .each_line
+        .reject { |line| line.strip == "" }
+        .find_all { |line| line.chomp.size != 240 }
+        .any?
     end
   end
 end

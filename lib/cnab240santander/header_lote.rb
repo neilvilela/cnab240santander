@@ -22,7 +22,7 @@ module Cnab240santander
       vlinha["nome_empresa"]           = linha[73..102] #alfa //Nome da empresa
       vlinha["res_banco5"]             = linha[103..182] #alfa //Reservado (uso Banco) - Branco
       vlinha["numero_retorno"]         = linha[183..190] #num //Numero do Retorno
-      vlinha["data_remessa"]           = formataData(linha[191..198]) #num //Data da gravacao remessa/retorno - DDMMAAAA
+      vlinha["data_remessa"]           = formata_data(linha[191..198]) #num //Data da gravacao remessa/retorno - DDMMAAAA
       vlinha["res_banco6"]             = linha[199..239] #brancos //Uso Exclusivo FEBRABAN / CNAB
       
       return vlinha
